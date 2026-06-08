@@ -3,276 +3,372 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa de Empatía Interactivo</title>
+    <title>WonkUp - Mapa de Empatía</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <!-- html2pdf para exportar -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
-        /* Estilos base para las notas */
-        .note {
-            position: absolute;
-            transition: transform 0.1s ease, box-shadow 0.1s ease;
-            box-shadow: 3px 4px 10px rgba(0, 0, 0, 0.2);
-            pointer-events: auto; /* Para que la nota capture los clics aunque la capa padre no lo haga */
+        :root {
+            --wonkup-cielo: #50a8f3;
+            --wonkup-amarillo: #f1c22d;
         }
-        .note textarea {
+        body { font-family: 'Inter', sans-serif; }
+
+        /* Estilo para simular hojas de post-its reales incrustadas */
+        .embedded-note {
+            position: relative;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            min-height: 70px;
+            display: flex;
+            flex-direction: column;
+            padding-top: 1.5rem; /* Espacio para la barra de herramientas */
+        }
+        .embedded-note:focus-within, .embedded-note:hover {
+            transform: scale(1.02);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .embedded-note textarea {
             font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
             line-height: 1.4;
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+            resize: none;
+            overflow: hidden;
         }
-        .note textarea::-webkit-scrollbar {
-            display: none;
+
+        /* Barra de herramientas flotante absoluta */
+        .note-toolbar {
+            position: absolute;
+            top: 4px;
+            left: 8px;
+            right: 8px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
         }
-        /* Patrón de fondo para el lienzo */
+        .embedded-note:hover .note-toolbar, .embedded-note:focus-within .note-toolbar {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Cuadrícula de fondo limpia */
         .bg-grid {
-            background-size: 30px 30px;
+            background-size: 20px 20px;
             background-image: 
-                linear-gradient(to right, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+                linear-gradient(to right, rgba(80, 168, 243, 0.04) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(80, 168, 243, 0.04) 1px, transparent 1px);
         }
-        /* Animación para ocultar herramientas al exportar */
+
+        /* Ajustes de exportación compacta de PDF */
+        .exporting .no-print {
+            display: none !important;
+        }
+        .exporting .embedded-note {
+            box-shadow: none !important;
+            border: 1.5px solid rgba(0, 0, 0, 0.15) !important;
+            padding-top: 0.25rem !important;
+            min-height: 50px !important;
+        }
+        .exporting .embedded-note textarea {
+            padding-top: 0 !important;
+        }
         .exporting .note-toolbar {
             display: none !important;
         }
-        .exporting textarea {
-            border: none !important;
-            resize: none !important;
-        }
+        
+        /* Colores vivos e identificables para el PDF */
+        .exporting .bg-yellow-100 { background-color: #fef08a !important; }
+        .exporting .bg-blue-100 { background-color: #93c5fd !important; }
+        .exporting .bg-green-100 { background-color: #86efac !important; }
+        .exporting .bg-rose-100 { background-color: #f9a8d4 !important; }
+        .exporting .bg-purple-100 { background-color: #c084fc !important; }
     </style>
 </head>
-<body class="bg-slate-800 h-screen flex flex-col font-sans overflow-hidden text-slate-800">
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col overflow-x-hidden">
 
-    <!-- BARRA DE HERRAMIENTAS GLOBAL (No se imprime) -->
-    <header class="bg-white px-6 py-4 flex justify-between items-center shadow-md z-50 flex-shrink-0">
-        <div>
-            <h1 class="text-2xl font-bold text-slate-800"><i class="fas fa-project-diagram text-blue-600 mr-2"></i> Dinámica: Mapa de Empatía</h1>
-            <p class="text-sm text-slate-500">Añade notas, cámbialas de color, ubícalas y exporta el resultado final.</p>
+    <!-- CABECERA GLOBAL (No se imprime) -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 shadow-sm z-50 no-print">
+        <div class="flex items-center gap-3">
+            <!-- Logo oficial de WonkUp con soporte de CORS y fallback de carga -->
+            <img id="header-logo" crossorigin="anonymous" src="logo_wonkup.png" onload="convertImageToDataURL(this)" alt="WonkUp" class="h-10 w-auto object-contain" onerror="showTextLogoFallback()">
+            
+            <!-- Respaldo de seguridad si el logo no carga en GitHub -->
+            <div id="text-logo-fallback" class="hidden flex items-center gap-2">
+                <div class="bg-[#f1c22d] text-slate-900 px-2 py-1 rounded font-black text-sm">W</div>
+                <h1 class="text-xl font-black text-[#50a8f3]">WONK<span class="text-[#f1c22d]">UP</span></h1>
+            </div>
+            
+            <div class="border-l border-slate-200 pl-3 hidden md:block">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Mapa de Empatía</span>
+            </div>
         </div>
-        <div class="flex gap-4">
-            <button onclick="addNote()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-5 rounded shadow transition-colors flex items-center gap-2">
-                <i class="fas fa-plus"></i> Añadir Nota
-            </button>
-            <button onclick="exportToPDF()" class="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-semibold py-2 px-5 rounded shadow-sm transition-colors flex items-center gap-2">
-                <i class="fas fa-file-pdf text-red-500"></i> Descargar PDF
+        
+        <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+            <button onclick="exportToPDF()" class="w-full sm:w-auto bg-[#50a8f3] hover:bg-[#3fa0f1] text-white font-semibold py-2 px-5 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2">
+                <i class="fas fa-file-pdf"></i> Descargar PDF
             </button>
         </div>
     </header>
 
-    <!-- ÁREA DE TRABAJO CON SCROLL -->
-    <main class="flex-grow overflow-auto p-8 flex justify-center items-start">
+    <!-- CONTENEDOR CENTRAL -->
+    <main class="flex-grow p-4 lg:p-8 flex justify-center items-start">
         
-        <!-- LIENZO DEL PDF (Este es el contenedor exacto que se convertirá en PDF) -->
-        <!-- Usamos un tamaño fijo similar a A4 Horizontal para garantizar la estructura -->
-        <div id="pdf-canvas" class="bg-white relative shadow-2xl flex flex-col" style="width: 1122px; height: 793px; min-width: 1122px; min-height: 793px;">
+        <!-- LIENZO DE TRABAJO -->
+        <div id="pdf-canvas" class="bg-white w-full max-w-[1200px] rounded-2xl shadow-xl border border-slate-200 flex flex-col p-6 sm:p-8 transition-all">
             
-            <!-- Cabecera del Documento (Sí se imprime) -->
-            <div class="px-8 py-6 border-b-2 border-slate-200 flex justify-between items-start bg-white z-10 relative">
-                <div>
-                    <h2 class="text-3xl font-extrabold text-slate-800 uppercase tracking-wide">Mapa de Empatía</h2>
-                    <p class="text-slate-500 mt-1">¿Qué experimenta nuestro usuario en su día a día?</p>
-                </div>
-                <div class="w-1/3">
-                    <label class="block text-sm font-bold text-slate-700 mb-1"><i class="fas fa-users mr-1"></i> Integrantes del Equipo:</label>
-                    <input type="text" class="w-full border-b-2 border-slate-300 bg-slate-50 p-2 outline-none focus:border-blue-500 transition-colors" placeholder="Ej: Ana López, Carlos Ruiz...">
-                </div>
-            </div>
-
-            <!-- Estructura del Mapa (Los Cuadrantes) -->
-            <div class="flex-grow grid grid-cols-2 grid-rows-3 bg-grid z-10 relative">
+            <!-- INFORMACIÓN DEL PROYECTO (Limpio y Centrado en la hoja) -->
+            <div class="flex flex-col lg:flex-row justify-between items-center gap-6 pb-6 mb-6 border-b-2 border-slate-100 w-full">
                 
-                <!-- 1. Piensa y Siente -->
-                <div class="border-r-2 border-b-2 border-slate-200 bg-blue-50/50 p-6 flex flex-col items-center justify-center text-center">
-                    <i class="fas fa-brain text-4xl text-blue-300 mb-2"></i>
-                    <h3 class="text-xl font-bold uppercase tracking-widest text-slate-700">Piensa y Siente</h3>
-                    <p class="text-xs text-slate-500 mt-2 max-w-[250px]">Preocupaciones, aspiraciones, sueños. ¿Qué le importa realmente?</p>
+                <!-- Izquierda: Título de la actividad -->
+                <div class="space-y-1 text-center lg:text-left lg:w-1/4">
+                    <h2 class="text-2xl font-black text-slate-800 flex items-center justify-center lg:justify-start gap-2">
+                        <span class="text-[#50a8f3]">MAPA DE</span> <span class="text-[#f1c22d]">EMPATÍA</span>
+                    </h2>
+                    <p class="text-[11px] text-slate-400 font-medium">¿Qué experimenta nuestro usuario en su día a día?</p>
                 </div>
 
-                <!-- 2. Ve -->
-                <div class="border-b-2 border-slate-200 bg-green-50/50 p-6 flex flex-col items-center justify-center text-center">
-                    <i class="fas fa-eye text-4xl text-green-300 mb-2"></i>
-                    <h3 class="text-xl font-bold uppercase tracking-widest text-slate-700">Ve</h3>
-                    <p class="text-xs text-slate-500 mt-2 max-w-[250px]">Entorno, mercado, competencia. ¿A qué estímulos visuales está expuesto?</p>
+                <!-- Centro: Inputs de Usuario/Target y Equipo -->
+                <div class="flex flex-col sm:flex-row gap-6 w-full lg:w-2/4 justify-center items-center">
+                    <div class="w-full max-w-xs text-center font-semibold">
+                        <label class="block text-[11px] font-extrabold text-[#50a8f3] uppercase tracking-wider mb-1"><i class="fas fa-bullseye mr-1"></i> Usuario / Target:</label>
+                        <input type="text" class="w-full border-b-2 border-slate-200 bg-slate-50/50 p-2 text-sm rounded outline-none focus:border-[#50a8f3] text-center font-semibold text-slate-700 transition-all focus:bg-white" placeholder="Ej: Estudiantes de secundaria...">
+                    </div>
+                    <div class="w-full max-w-xs text-center font-semibold">
+                        <label class="block text-[11px] font-extrabold text-[#f1c22d] uppercase tracking-wider mb-1"><i class="fas fa-users mr-1"></i> Integrantes del Equipo:</label>
+                        <input type="text" class="w-full border-b-2 border-slate-200 bg-slate-50/50 p-2 text-sm rounded outline-none focus:border-[#f1c22d] text-center font-semibold text-slate-700 transition-all focus:bg-white" placeholder="Escribe los nombres...">
+                    </div>
                 </div>
 
-                <!-- 3. Oye -->
-                <div class="border-r-2 border-b-2 border-slate-200 bg-yellow-50/50 p-6 flex flex-col items-center justify-center text-center">
-                    <i class="fas fa-ear-listen text-4xl text-yellow-300 mb-2"></i>
-                    <h3 class="text-xl font-bold uppercase tracking-widest text-slate-700">Oye</h3>
-                    <p class="text-xs text-slate-500 mt-2 max-w-[250px]">¿Qué dicen sus amigos, familia, jefes o influencers? ¿A quién escucha?</p>
-                </div>
-
-                <!-- 4. Dice y Hace -->
-                <div class="border-b-2 border-slate-200 bg-pink-50/50 p-6 flex flex-col items-center justify-center text-center">
-                    <i class="fas fa-comments text-4xl text-pink-300 mb-2"></i>
-                    <h3 class="text-xl font-bold uppercase tracking-widest text-slate-700">Dice y Hace</h3>
-                    <p class="text-xs text-slate-500 mt-2 max-w-[250px]">Actitud en público, comportamiento, acciones frente a los demás.</p>
-                </div>
-
-                <!-- 5. Esfuerzos -->
-                <div class="border-r-2 border-slate-200 bg-red-50/30 p-6 flex flex-col items-center justify-center text-center">
-                    <i class="fas fa-heart-crack text-4xl text-red-300 mb-2"></i>
-                    <h3 class="text-xl font-bold uppercase tracking-widest text-slate-700">Esfuerzos (Dolores)</h3>
-                    <p class="text-xs text-slate-500 mt-2 max-w-[250px]">Miedos, frustraciones y obstáculos que debe superar.</p>
-                </div>
-
-                <!-- 6. Resultados -->
-                <div class="bg-emerald-50/30 p-6 flex flex-col items-center justify-center text-center">
-                    <i class="fas fa-trophy text-4xl text-emerald-300 mb-2"></i>
-                    <h3 class="text-xl font-bold uppercase tracking-widest text-slate-700">Resultados (Ganancias)</h3>
-                    <p class="text-xs text-slate-500 mt-2 max-w-[250px]">Deseos, necesidades reales y su definición de éxito.</p>
+                <!-- Derecha: Logo de WonkUp para impresión -->
+                <div class="flex flex-col items-center lg:items-end lg:w-1/4 flex-shrink-0">
+                    <img id="pdf-logo" crossorigin="anonymous" src="logo_wonkup.png" onload="convertImageToDataURL(this)" alt="WonkUp" class="h-9 w-auto object-contain" onerror="handleImageError(this, 'pdf-text-logo')">
+                    <div id="pdf-text-logo" class="hidden text-right">
+                        <span class="text-xs font-black text-[#50a8f3]">WONK<span class="text-[#f1c22d]">UP</span></span>
+                    </div>
+                    <span class="text-[9px] font-bold text-slate-300 uppercase tracking-widest mt-1">INCUBADORA</span>
                 </div>
             </div>
 
-            <!-- CAPA EXCLUSIVA PARA NOTAS (z-index altísimo para que nunca queden atrás) -->
-            <!-- pointer-events-none asegura que no bloquee clics en el fondo, pero las notas tendrán pointer-events-auto -->
-            <div id="notes-layer" class="absolute inset-0 z-50 pointer-events-none" style="overflow: visible;">
-                <!-- Las notas se inyectarán aquí -->
+            <!-- CUADRÍCULA DE LOS 6 CUADRANTES (Auto-expandible) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-grid rounded-xl p-2">
+                
+                <!-- 1. ¿QUÉ PIENSA Y SIENTE? -->
+                <div class="bg-white border-2 border-slate-100 rounded-xl p-5 flex flex-col justify-between min-h-[220px] transition-all hover:border-[#50a8f3]/20 shadow-sm">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex items-center gap-3">
+                                <span class="text-3xl">🧠</span>
+                                <div>
+                                    <h3 class="font-extrabold text-slate-800 text-sm uppercase tracking-wider">¿Qué piensa y siente?</h3>
+                                    <p class="text-[11px] text-slate-400">Sus valores, preocupaciones reales, metas y aspiraciones.</p>
+                                </div>
+                            </div>
+                            <button onclick="addInlineNote('container-piensa', 'bg-yellow-100')" class="no-print text-xs bg-[#50a8f3]/10 hover:bg-[#50a8f3] text-[#50a8f3] hover:text-white font-bold py-1 px-2.5 rounded-full transition-all flex items-center gap-1">
+                                <i class="fas fa-plus text-[9px]"></i> Nota
+                            </button>
+                        </div>
+                        <div id="container-piensa" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                            <!-- Aquí se inyectan las notas -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. ¿QUÉ VE? -->
+                <div class="bg-white border-2 border-slate-100 rounded-xl p-5 flex flex-col justify-between min-h-[220px] transition-all hover:border-[#50a8f3]/20 shadow-sm">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex items-center gap-3">
+                                <span class="text-3xl">👁️</span>
+                                <div>
+                                    <h3 class="font-extrabold text-slate-800 text-sm uppercase tracking-wider">¿Qué ve?</h3>
+                                    <p class="text-[11px] text-slate-400">Su entorno, amigos, lo que ofrece el mercado y la competencia.</p>
+                                </div>
+                            </div>
+                            <button onclick="addInlineNote('container-ve', 'bg-blue-100')" class="no-print text-xs bg-[#50a8f3]/10 hover:bg-[#50a8f3] text-[#50a8f3] hover:text-white font-bold py-1 px-2.5 rounded-full transition-all flex items-center gap-1">
+                                <i class="fas fa-plus text-[9px]"></i> Nota
+                            </button>
+                        </div>
+                        <div id="container-ve" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                            <!-- Aquí se inyectan las notas -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. ¿QUÉ OYE? -->
+                <div class="bg-white border-2 border-slate-100 rounded-xl p-5 flex flex-col justify-between min-h-[220px] transition-all hover:border-[#50a8f3]/20 shadow-sm">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex items-center gap-3">
+                                <span class="text-3xl">👂</span>
+                                <div>
+                                    <h3 class="font-extrabold text-slate-800 text-sm uppercase tracking-wider">¿Qué oye?</h3>
+                                    <p class="text-[11px] text-slate-400">Lo que dicen las personas influyentes, su familia, jefes o redes.</p>
+                                </div>
+                            </div>
+                            <button onclick="addInlineNote('container-oye', 'bg-purple-100')" class="no-print text-xs bg-[#50a8f3]/10 hover:bg-[#50a8f3] text-[#50a8f3] hover:text-white font-bold py-1 px-2.5 rounded-full transition-all flex items-center gap-1">
+                                <i class="fas fa-plus text-[9px]"></i> Nota
+                            </button>
+                        </div>
+                        <div id="container-oye" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                            <!-- Aquí se inyectan las notas -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. ¿QUÉ DICE Y HACE? -->
+                <div class="bg-white border-2 border-slate-100 rounded-xl p-5 flex flex-col justify-between min-h-[220px] transition-all hover:border-[#50a8f3]/20 shadow-sm">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex items-center gap-3">
+                                <span class="text-3xl">💬</span>
+                                <div>
+                                    <h3 class="font-extrabold text-slate-800 text-sm uppercase tracking-wider">¿Qué dice y hace?</h3>
+                                    <p class="text-[11px] text-slate-400">Su comportamiento en público, aspecto, actitud y acciones.</p>
+                                </div>
+                            </div>
+                            <button onclick="addInlineNote('container-dice', 'bg-rose-100')" class="no-print text-xs bg-[#50a8f3]/10 hover:bg-[#50a8f3] text-[#50a8f3] hover:text-white font-bold py-1 px-2.5 rounded-full transition-all flex items-center gap-1">
+                                <i class="fas fa-plus text-[9px]"></i> Nota
+                            </button>
+                        </div>
+                        <div id="container-dice" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                            <!-- Aquí se inyectan las notas -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. ESFUERZOS (DOLORES) -->
+                <div class="bg-white border-2 border-slate-100 rounded-xl p-5 flex flex-col justify-between min-h-[180px] transition-all hover:border-red-200 shadow-sm">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex items-center gap-3">
+                                <span class="text-3xl">💔</span>
+                                <div>
+                                    <h3 class="font-extrabold text-red-700 text-sm uppercase tracking-wider">Esfuerzos (Dolores)</h3>
+                                    <p class="text-[11px] text-slate-400">Frustraciones, obstáculos, miedos y riesgos que enfrenta.</p>
+                                </div>
+                            </div>
+                            <button onclick="addInlineNote('container-esfuerzos', 'bg-rose-100')" class="no-print text-xs bg-[#50a8f3]/10 hover:bg-[#50a8f3] text-[#50a8f3] hover:text-white font-bold py-1 px-2.5 rounded-full transition-all flex items-center gap-1">
+                                <i class="fas fa-plus text-[9px]"></i> Nota
+                            </button>
+                        </div>
+                        <div id="container-esfuerzos" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                            <!-- Aquí se inyectan las notas -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. RESULTADOS (GANANCIAS) -->
+                <div class="bg-white border-2 border-slate-100 rounded-xl p-5 flex flex-col justify-between min-h-[180px] transition-all hover:border-teal-200 shadow-sm">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex items-center gap-3">
+                                <span class="text-3xl">🏆</span>
+                                <div>
+                                    <h3 class="font-extrabold text-teal-700 text-sm uppercase tracking-wider">Resultados (Ganancias)</h3>
+                                    <p class="text-[11px] text-slate-400">Deseos, necesidades reales, medidas de éxito y metas.</p>
+                                </div>
+                            </div>
+                            <button onclick="addInlineNote('container-resultados', 'bg-green-100')" class="no-print text-xs bg-[#50a8f3]/10 hover:bg-[#50a8f3] text-[#50a8f3] hover:text-white font-bold py-1 px-2.5 rounded-full transition-all flex items-center gap-1">
+                                <i class="fas fa-plus text-[9px]"></i> Nota
+                            </button>
+                        </div>
+                        <div id="container-resultados" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                            <!-- Aquí se inyectan las notas -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- PIE DE PÁGINA EXCLUSIVO PARA EL PDF -->
+            <div class="hidden exporting flex justify-between items-center mt-6 pt-4 border-t border-slate-100 text-[10px] text-slate-400 font-semibold">
+                <span>Generado con WonkUp Incubadora de Emprendimiento</span>
+                <span>www.wonkup.com</span>
             </div>
 
         </div>
     </main>
 
     <script>
-        // Capa donde se guardan las notas
-        const notesLayer = document.getElementById('notes-layer');
-        let zIndexCounter = 100;
+        // Convertidor de seguridad para evitar fallos de CORS en el PDF
+        function convertImageToDataURL(imgElement) {
+            if (imgElement.src.startsWith('data:')) return;
+            const canvas = document.createElement('canvas');
+            canvas.width = imgElement.naturalWidth;
+            canvas.height = imgElement.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            try {
+                ctx.drawImage(imgElement, 0, 0);
+                imgElement.src = canvas.toDataURL('image/png');
+                imgElement.removeAttribute('crossorigin');
+            } catch (e) {
+                console.warn("Se activará el respaldo de texto para el logo:", e);
+            }
+        }
 
-        function addNote(text = '') {
-            const note = document.createElement('div');
-            // Inicializar con color amarillo por defecto. Añadimos pointer-events-auto.
-            note.className = 'note bg-yellow-200 w-48 h-48 flex flex-col rounded border border-black/5';
+        // Manejo ultra seguro de logos rotos o no encontrados
+        function handleImageError(imgElement, fallbackId) {
+            imgElement.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+            imgElement.classList.add('hidden');
+            const fallback = document.getElementById(fallbackId);
+            if (fallback) fallback.classList.remove('hidden');
+        }
+
+        // Mostrar texto de respaldo si el logo principal falla
+        function showTextLogoFallback() {
+            handleImageError(document.getElementById('header-logo'), 'text-logo-fallback');
+        }
+
+        // Agregar nota integrada de manera natural (Incrustada)
+        function addInlineNote(containerId, colorClass, initialText = '') {
+            const container = document.getElementById(containerId);
+            const noteId = 'note-' + Date.now() + Math.floor(Math.random() * 1000);
             
-            // Posicionar en el centro
-            const randomOffset = Math.floor(Math.random() * 40) - 20; 
-            note.style.left = `500px`; 
-            note.style.top = `300px`;
-            note.style.transform = `translate(${randomOffset}px, ${randomOffset}px)`;
-            note.style.zIndex = ++zIndexCounter;
-
-            // Estructura interna de la nota: Barra de herramientas (arrastre + colores) y Textarea
-            note.innerHTML = `
-                <div class="note-toolbar w-full h-8 cursor-grab bg-black/5 flex justify-between items-center px-2 group">
-                    <!-- Paleta de colores oculta hasta que pasas el ratón -->
-                    <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button class="color-btn w-4 h-4 rounded-full bg-yellow-200 border border-black/20 hover:scale-110 transition-transform" data-color="bg-yellow-200" title="Amarillo"></button>
-                        <button class="color-btn w-4 h-4 rounded-full bg-blue-200 border border-black/20 hover:scale-110 transition-transform" data-color="bg-blue-200" title="Azul"></button>
-                        <button class="color-btn w-4 h-4 rounded-full bg-green-200 border border-black/20 hover:scale-110 transition-transform" data-color="bg-green-200" title="Verde"></button>
-                        <button class="color-btn w-4 h-4 rounded-full bg-pink-200 border border-black/20 hover:scale-110 transition-transform" data-color="bg-pink-200" title="Rosa"></button>
-                        <button class="color-btn w-4 h-4 rounded-full bg-purple-200 border border-black/20 hover:scale-110 transition-transform" data-color="bg-purple-200" title="Púrpura"></button>
+            const noteDiv = document.createElement('div');
+            noteDiv.id = noteId;
+            noteDiv.className = `embedded-note ${colorClass} rounded-xl p-3 border border-black/5 flex flex-col gap-1`;
+            
+            noteDiv.innerHTML = `
+                <div class="note-toolbar flex justify-between items-center pb-1 border-b border-black/5">
+                    <div class="flex gap-1">
+                        <button onclick="changeNoteColor('${noteId}', 'bg-yellow-100')" class="w-3 h-3 rounded-full bg-yellow-200 border border-black/15" title="Amarillo"></button>
+                        <button onclick="changeNoteColor('${noteId}', 'bg-blue-100')" class="w-3 h-3 rounded-full bg-blue-200 border border-black/15" title="Cielo"></button>
+                        <button onclick="changeNoteColor('${noteId}', 'bg-green-100')" class="w-3 h-3 rounded-full bg-green-200 border border-black/15" title="Verde"></button>
+                        <button onclick="changeNoteColor('${noteId}', 'bg-rose-100')" class="w-3 h-3 rounded-full bg-rose-200 border border-black/15" title="Coral"></button>
+                        <button onclick="changeNoteColor('${noteId}', 'bg-purple-100')" class="w-3 h-3 rounded-full bg-purple-200 border border-black/15" title="Morado"></button>
                     </div>
-                    <!-- Botón eliminar -->
-                    <button class="delete-btn text-black/30 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100" title="Eliminar nota">
-                        <i class="fas fa-times"></i>
+                    <button onclick="deleteInlineNote('${noteId}')" class="text-black/30 hover:text-red-500 transition-colors text-xs" title="Eliminar">
+                        <i class="fas fa-trash-can"></i>
                     </button>
                 </div>
-                <textarea class="w-full flex-grow bg-transparent border-none outline-none resize-none text-slate-800 text-lg font-medium p-3 placeholder-black/30" placeholder="Escribe aquí...">${text}</textarea>
+                <textarea class="w-full flex-grow bg-transparent border-none outline-none text-slate-800 text-xs font-semibold placeholder-black/25" rows="1" placeholder="Escribe aquí...">${initialText}</textarea>
             `;
-
-            // EVENTOS DE COLOR
-            const colorButtons = note.querySelectorAll('.color-btn');
-            colorButtons.forEach(btn => {
-                // Prevenir que el clic en el color inicie el arrastre
-                btn.addEventListener('pointerdown', (e) => e.stopPropagation());
-                
-                // Cambiar el color de la nota
-                btn.addEventListener('click', (e) => {
-                    const newColor = e.target.getAttribute('data-color');
-                    // Remover todos los colores posibles
-                    note.classList.remove('bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200');
-                    // Añadir el nuevo
-                    note.classList.add(newColor);
-                });
-            });
-
-            // EVENTO ELIMINAR
-            const deleteBtn = note.querySelector('.delete-btn');
-            deleteBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
-            deleteBtn.addEventListener('click', () => {
-                note.style.transform = 'scale(0)';
-                note.style.opacity = '0';
-                setTimeout(() => note.remove(), 200);
-            });
-
-            // LÓGICA DE ARRASTRE
-            const toolbar = note.querySelector('.note-toolbar');
-            let isDragging = false;
-            let startX, startY, initialLeft, initialTop;
-
-            toolbar.addEventListener('pointerdown', (e) => {
-                // Si hizo clic en un botón, no iniciar arrastre
-                if (e.target.closest('button')) return;
-
-                isDragging = true;
-                note.style.zIndex = ++zIndexCounter;
-                toolbar.classList.replace('cursor-grab', 'cursor-grabbing');
-                note.style.boxShadow = '5px 8px 20px rgba(0, 0, 0, 0.3)';
-
-                startX = e.clientX;
-                startY = e.clientY;
-                initialLeft = parseFloat(note.style.left) || 0;
-                initialTop = parseFloat(note.style.top) || 0;
-                
-                toolbar.setPointerCapture(e.pointerId);
-            });
-
-            toolbar.addEventListener('pointermove', (e) => {
-                if (!isDragging) return;
-                const dx = e.clientX - startX;
-                const dy = e.clientY - startY;
-                note.style.left = `${initialLeft + dx}px`;
-                note.style.top = `${initialTop + dy}px`;
-            });
-
-            toolbar.addEventListener('pointerup', (e) => {
-                isDragging = false;
-                toolbar.classList.replace('cursor-grabbing', 'cursor-grab');
-                note.style.boxShadow = '3px 4px 10px rgba(0, 0, 0, 0.2)';
-                toolbar.releasePointerCapture(e.pointerId);
-            });
-
-            // Traer al frente al hacer clic en el texto
-            note.querySelector('textarea').addEventListener('mousedown', () => {
-                note.style.zIndex = ++zIndexCounter;
-            });
-
-            // Añadir al contenedor
-            notesLayer.appendChild(note);
-        }
-
-        // Función para exportar a PDF
-        function exportToPDF() {
-            const canvas = document.getElementById('pdf-canvas');
             
-            // Añadir clase para ocultar botones temporalmente
-            canvas.classList.add('exporting');
+            container.appendChild(noteDiv);
 
-            const opt = {
-                margin:       0,
-                filename:     'Mapa_de_Empatia_Equipo.pdf',
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true },
-                jsPDF:        { unit: 'px', format: [1122, 793], orientation: 'landscape' }
-            };
-
-            // Generar PDF
-            html2pdf().set(opt).from(canvas).save().then(() => {
-                // Restaurar botones después de descargar
-                canvas.classList.remove('exporting');
+            // Ajustar altura automáticamente en base al texto para evitar espacios vacíos
+            const textarea = noteDiv.querySelector('textarea');
+            textarea.addEventListener('input', () => {
+                textarea.style.height = 'auto';
+                textarea.style.height = textarea.scrollHeight + 'px';
             });
+
+            // Ajustar altura inicial diferida para cuando se renderice el texto por defecto
+            setTimeout(() => {
+                textarea.style.height = 'auto';
+                textarea.style.height = textarea.scrollHeight + 'px';
+            }, 50);
         }
 
-        // Crear un par de notas de ejemplo al iniciar
-        window.onload = () => {
-            setTimeout(() => {
-                addNote("Miedo: Que la IA le quite su trabajo (ejemplo)");
-                // Cambiar el color de la primera nota a rojo por ejemplo
-                notesLayer.lastElementChild.classList.replace('bg-yellow-200', 'bg-pink-200');
-            }, 300);
-        };
-    </script>
-</body>
-</html>
+        // Eliminar nota de manera suave
+        function deleteInlineNote(noteId) {
+            const note = document.getElementById(noteId);
+            if (note) {
+                note.style.transform = 'scale(0.9)';
+                note.style.opacity = '0';
+                setTimeout(() => note.remove(), 150);
+            }
+        }
