@@ -372,3 +372,63 @@
                 setTimeout(() => note.remove(), 150);
             }
         }
+
+        // Cambiar el color de fondo del post-it
+        function changeNoteColor(noteId, newColorClass) {
+            const note = document.getElementById(noteId);
+            if (note) {
+                // Removemos cualquier clase bg- existente y añadimos la nueva
+                note.className = note.className.replace(/bg-\w+-\d+/g, newColorClass);
+            }
+        }
+
+        function exportToPDF() {
+            const canvas = document.getElementById('pdf-canvas');
+            canvas.classList.add('exporting');
+
+            // Pequeño retardo para dar tiempo a que se aplique la clase de exportación
+            setTimeout(() => {
+                let width = canvas.offsetWidth;
+                let height = canvas.offsetHeight;
+
+                // Fallback de seguridad por si el contenedor mide 0 en previsualizaciones
+                if (!width || width < 300) width = 1200;
+                if (!height || height < 300) height = 800;
+
+                // Convertir dimensiones a puntos de impresión (1px = 0.75pt)
+                const widthPt = width * 0.75;
+                const heightPt = height * 0.75;
+
+                // Decidir orientación de la hoja en tiempo real
+                const orientation = height > width ? 'p' : 'l';
+
+                const opt = {
+                    margin:       10,
+                    filename:     'Mapa_de_Empatia_WonkUp.pdf',
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2, useCORS: true, logging: false },
+                    // Formato exacto a la medida para garantizar que se imprima en UNA SOLA HOJA
+                    jsPDF:        { unit: 'pt', format: [widthPt, heightPt], orientation: orientation }
+                };
+
+                html2pdf().set(opt).from(canvas).save().then(() => {
+                    canvas.classList.remove('exporting');
+                }).catch(err => {
+                    console.error("Error al exportar PDF:", err);
+                    canvas.classList.remove('exporting');
+                });
+            }, 100);
+        }
+
+        // Cargar notas demostrativas al iniciar la web con colores de WonkUp
+        window.onload = function() {
+            setTimeout(() => {
+                addInlineNote('container-piensa', 'bg-yellow-100', "Le preocupa no encontrar herramientas sencillas para entender a su público objetivo.");
+                addInlineNote('container-ve', 'bg-blue-100', "Ve que la competencia avanza muy rápido usando software colaborativo.");
+                addInlineNote('container-esfuerzos', 'bg-rose-100', "Miedo a diseñar una solución que nadie esté interesado en comprar o usar.");
+                addInlineNote('container-resultados', 'bg-green-100', "Lanzar un producto de alto impacto y aprender metodologías de incubación profesionales.");
+            }, 300);
+        };
+    </script>
+</body>
+</html>
