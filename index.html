@@ -119,36 +119,35 @@
         <!-- LIENZO DE TRABAJO -->
         <div id="pdf-canvas" class="bg-white w-full max-w-[1200px] rounded-2xl shadow-xl border border-slate-200 flex flex-col p-6 sm:p-8 transition-all">
             
-            <!-- INFORMACIÓN DEL PROYECTO (Limpio y Centrado en la hoja) -->
+            <!-- INFORMACIÓN DEL PROYECTO (Limpio y Optimizado) -->
             <div class="flex flex-col lg:flex-row justify-between items-center gap-6 pb-6 mb-6 border-b-2 border-slate-100 w-full">
                 
                 <!-- Izquierda: Título de la actividad -->
-                <div class="space-y-1 text-center lg:text-left lg:w-1/4">
+                <div class="space-y-1 text-center lg:text-left lg:w-1/5 flex-shrink-0">
                     <h2 class="text-2xl font-black text-slate-800 flex items-center justify-center lg:justify-start gap-2">
                         <span class="text-[#50a8f3]">MAPA DE</span> <span class="text-[#f1c22d]">EMPATÍA</span>
                     </h2>
                     <p class="text-[11px] text-slate-400 font-medium">¿Qué experimenta nuestro usuario en su día a día?</p>
                 </div>
 
-                <!-- Centro: Inputs de Usuario/Target y Equipo -->
-                <div class="flex flex-col sm:flex-row gap-6 w-full lg:w-2/4 justify-center items-center">
+                <!-- Centro: Inputs de Usuario/Target y Equipo (Integrantes ampliado) -->
+                <div class="flex flex-col sm:flex-row gap-6 w-full lg:flex-grow justify-center items-center px-4">
                     <div class="w-full max-w-xs text-center font-semibold">
                         <label class="block text-[11px] font-extrabold text-[#50a8f3] uppercase tracking-wider mb-1"><i class="fas fa-bullseye mr-1"></i> Usuario / Target:</label>
                         <input type="text" class="w-full border-b-2 border-slate-200 bg-slate-50/50 p-2 text-sm rounded outline-none focus:border-[#50a8f3] text-center font-semibold text-slate-700 transition-all focus:bg-white" placeholder="Ej: Estudiantes de secundaria...">
                     </div>
-                    <div class="w-full max-w-xs text-center font-semibold">
+                    <div class="w-full max-w-md text-center font-semibold">
                         <label class="block text-[11px] font-extrabold text-[#f1c22d] uppercase tracking-wider mb-1"><i class="fas fa-users mr-1"></i> Integrantes del Equipo:</label>
-                        <input type="text" class="w-full border-b-2 border-slate-200 bg-slate-50/50 p-2 text-sm rounded outline-none focus:border-[#f1c22d] text-center font-semibold text-slate-700 transition-all focus:bg-white" placeholder="Escribe los nombres...">
+                        <input type="text" class="w-full border-b-2 border-slate-200 bg-slate-50/50 p-2 text-sm rounded outline-none focus:border-[#f1c22d] text-center font-semibold text-slate-700 transition-all focus:bg-white" placeholder="Escribe los nombres de todos los integrantes...">
                     </div>
                 </div>
 
-                <!-- Derecha: Logo de WonkUp para impresión -->
-                <div class="flex flex-col items-center lg:items-end lg:w-1/4 flex-shrink-0">
+                <!-- Derecha: Logo de WonkUp para impresión (Sin la palabra redundante "Incubadora") -->
+                <div class="flex flex-col items-center lg:items-end lg:w-1/5 flex-shrink-0">
                     <img id="pdf-logo" crossorigin="anonymous" src="logo_wonkup.png" onload="convertImageToDataURL(this)" alt="WonkUp" class="h-9 w-auto object-contain" onerror="handleImageError(this, 'pdf-text-logo')">
                     <div id="pdf-text-logo" class="hidden text-right">
                         <span class="text-xs font-black text-[#50a8f3]">WONK<span class="text-[#f1c22d]">UP</span></span>
                     </div>
-                    <span class="text-[9px] font-bold text-slate-300 uppercase tracking-widest mt-1">INCUBADORA</span>
                 </div>
             </div>
 
